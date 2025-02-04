@@ -1,5 +1,7 @@
 import asyncio
 import os
+import signal
+import argparse
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from rich.console import Console
@@ -7,59 +9,88 @@ from rich.markdown import Markdown
 from rich.prompt import Prompt
 from rich.live import Live
 
-console = Console(force_interactive=True)
-
-# Muat variabel lingkungan dari .env
+# Load environment variables
 load_dotenv()
 
-client = AsyncOpenAI(
-    base_url=os.getenv("BASE_URL"),
-    api_key=os.getenv("API_KEY")
-)
+# Constants
+AI_NAME = "Jarvis"
+MODEL_NAME = os.getenv("MODEL_NAME")
+BASE_URL = os.getenv("BASE_URL")
+API_KEY = os.getenv("API_KEY")
 
-ai_name = 'Jarvis'
+# Initialize OpenAI client
+client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
 
-chat_history = [
-    {"role": "system", "content": "You are "+ai_name+" helpful assistant."},
-]
+# Rich console setup
+console = Console(force_interactive=True)
 
-model_name = "llama-3.1-8b-instant"
+# Chat history storage
+chat_history = []
+
+def signal_handler(sig, frame):
+    """Handles SIGINT (Ctrl+C) to gracefully exit."""
+    console.print(f"\n[bold cyan]{AI_NAME}:[/] Goodbye! 👋\n")
+    raise SystemExit(0)
+
+# Bind signal handler for keyboard interrupt
+signal.signal(signal.SIGINT, signal_handler)
+
+async def ask():
+    """Send user input to the AI model and stream the response."""
+    stream = await client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=chat_history,
+        stream=True
+    )
+    
+    bot_response = ""
+    with Live("", console=console, refresh_per_second=10) as live:
+        async for chunk in stream:
+            if chunk.choices[0].delta.content:
+                bot_response += chunk.choices[0].delta.content
+                live.update(Markdown(bot_response))
+    console.print("\n")
 
 async def chat():
-    global model_name
-    console.print("[bold cyan]🤖 {} siap![/] Ketik [bold red]exit[/] untuk keluar. Ketik [bold blue]model[/] untuk mengganti model.\n".format(ai_name))
-
+    """Interactive chat session with AI."""
+    global MODEL_NAME
+    console.print(f"[bold cyan]{AI_NAME} ready![/] Type [bold red]exit[/] to quit. Type [bold blue]model[/] to change model.\n")
+    
     while True:
         user_input = Prompt.ask("[bold yellow]You[/]")
         if user_input.lower() == "exit":
-            console.print("\n[bold red]{}:[/] Goodbye! 👋\n".format(ai_name))
+            console.print(f"\n[bold cyan]{AI_NAME}:[/] Goodbye! 👋\n")
             break
         elif user_input.lower() == "model":
-            model_name = Prompt.ask("Masukkan nama model: ")
-            console.print(f"[bold blue]Model changed to {model_name}[/]\n")
+            MODEL_NAME = Prompt.ask("Enter model name: ")
+            console.print(f"[bold blue]Model changed to {MODEL_NAME}[/]\n")
             continue
         if not user_input.strip():
             continue
 
         chat_history.append({"role": "user", "content": user_input})
 
-        stream = await client.chat.completions.create(
-            model=model_name,
-            messages=chat_history,
-            stream=True
-        )
+        console.print(f"\n[bold cyan]{AI_NAME}:[/]")
+        await ask()
 
-        console.print("\n[bold cyan]{}:[/]".format(ai_name))
+def parse_arguments():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Atomic - Advanced Terminal Operation & Machine Intelligent Commander."
+    )
+    parser.add_argument("-a", "--ask", type=str, help="Ask a question.")
+    return parser.parse_args()
 
-        bot_response = ""
+async def main():
+    """Main function to handle both CLI and interactive chat."""
+    args = parse_arguments()
+    if args.ask:
+        chat_history.append({"role": "system", "content": f"You are a command shell ({os.name}), provide terminal commands."})
+        chat_history.append({"role": "user", "content": args.ask})
+        await ask()
+    else:
+        chat_history.append({"role": "system", "content": f"You are {AI_NAME}, a helpful assistant."})
+        await chat()
 
-        with Live("", console=console, refresh_per_second=10) as live:
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    bot_response += chunk.choices[0].delta.content
-                    live.update(Markdown(bot_response))
-        
-        console.print("\n")
-        chat_history.append({"role": "assistant", "content": bot_response})
-
-asyncio.run(chat())
+if __name__ == "__main__":
+    asyncio.run(main())
