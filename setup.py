@@ -8,11 +8,8 @@ setup(
     py_modules=["atomic"], 
     install_requires=[
         "rich",
-        "requests",
-        "bs4",
-        "lxml",
-        "pyopenssl",
-        "pyyaml"
+        "openai",
+        "dotenv",
     ],
     entry_points={
         'console_scripts': [
