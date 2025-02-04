@@ -9,7 +9,7 @@ setup(
     install_requires=[
         "rich",
         "openai",
-        "dotenv",
+        "python-dotenv",
     ],
     entry_points={
         'console_scripts': [
