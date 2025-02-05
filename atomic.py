@@ -10,7 +10,8 @@ from rich.prompt import Prompt
 from rich.live import Live
 
 # Load environment variables
-load_dotenv()
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(env_path)
 
 AI_NAME = "Jarvis"
 
@@ -84,16 +85,16 @@ async def main():
     args = parse_arguments()
 
     if args.API_KEY:
-        set_key(dotenv_path='.env', key_to_set='API_KEY', value_to_set=args.API_KEY)
+        set_key(env_path, key_to_set='API_KEY', value_to_set=args.API_KEY)
         API_KEY = os.environ["API_KEY"] = args.API_KEY
     if args.BASE_URL:
-        set_key(dotenv_path='.env', key_to_set='BASE_URL', value_to_set=args.BASE_URL)
+        set_key(env_path, key_to_set='BASE_URL', value_to_set=args.BASE_URL)
         BASE_URL = os.environ["BASE_URL"] = args.BASE_URL
     if args.MODEL:
-        set_key(dotenv_path='.env', key_to_set='MODEL_NAME', value_to_set=args.MODEL)
+        set_key(env_path, key_to_set='MODEL_NAME', value_to_set=args.MODEL)
         MODEL_NAME = os.environ["MODEL_NAME"] = args.MODEL
     
-    load_dotenv(override=True)  # Reload environment variables
+    load_dotenv(env_path, override=True)
 
     # Inisialisasi client dengan API_KEY yang terbaru
     client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
