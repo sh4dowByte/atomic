@@ -3,23 +3,25 @@ import os
 import signal
 import argparse
 from openai import AsyncOpenAI
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.prompt import Prompt
 from rich.live import Live
 
+# Pastikan .env tersedia
+if not os.path.exists('.env'):
+    with open('env.example', 'r') as f:
+        with open('.env', 'w') as g:
+            g.writelines(f.readlines())
+
 # Load environment variables
 load_dotenv()
 
-# Constants
 AI_NAME = "Jarvis"
 MODEL_NAME = os.getenv("MODEL_NAME")
 BASE_URL = os.getenv("BASE_URL")
 API_KEY = os.getenv("API_KEY")
-
-# Initialize OpenAI client
-client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
 
 # Rich console setup
 console = Console(force_interactive=True)
@@ -35,7 +37,7 @@ def signal_handler(sig, frame):
 # Bind signal handler for keyboard interrupt
 signal.signal(signal.SIGINT, signal_handler)
 
-async def ask():
+async def ask(client):
     """Send user input to the AI model and stream the response."""
     stream = await client.chat.completions.create(
         model=MODEL_NAME,
@@ -51,7 +53,7 @@ async def ask():
                 live.update(Markdown(bot_response))
     console.print("\n")
 
-async def chat():
+async def chat(client):
     """Interactive chat session with AI."""
     global MODEL_NAME
     console.print(f"[bold cyan]{AI_NAME} ready![/] Type [bold red]exit[/] to quit. Type [bold blue]model[/] to change model.\n")
@@ -61,17 +63,13 @@ async def chat():
         if user_input.lower() == "exit":
             console.print(f"\n[bold cyan]{AI_NAME}:[/] Goodbye! 👋\n")
             break
-        elif user_input.lower() == "model":
-            MODEL_NAME = Prompt.ask("Enter model name: ")
-            console.print(f"[bold blue]Model changed to {MODEL_NAME}[/]\n")
-            continue
         if not user_input.strip():
             continue
 
         chat_history.append({"role": "user", "content": user_input})
 
         console.print(f"\n[bold cyan]{AI_NAME}:[/]")
-        await ask()
+        await ask(client)
 
 def parse_arguments():
     """Parse command-line arguments."""
@@ -79,18 +77,41 @@ def parse_arguments():
         description="Atomic - Advanced Terminal Operation & Machine Intelligent Commander."
     )
     parser.add_argument("-a", "--ask", type=str, help="Ask a question.")
+    parser.add_argument("--API_KEY", type=str, help="Change API key (default: hidden)")
+    parser.add_argument("--BASE_URL", type=str, help="Change Base Url (default: "+BASE_URL+")")
+    parser.add_argument("--MODEL", type=str, help="Change Model Name (default: "+MODEL_NAME+")")
+   
     return parser.parse_args()
 
 async def main():
     """Main function to handle both CLI and interactive chat."""
     args = parse_arguments()
+
+    if args.API_KEY:
+        set_key(dotenv_path='.env', key_to_set='API_KEY', value_to_set=args.API_KEY)
+        os.environ["API_KEY"] = args.API_KEY
+    if args.BASE_URL:
+        set_key(dotenv_path='.env', key_to_set='BASE_URL', value_to_set=args.BASE_URL)
+        os.environ["BASE_URL"] = args.BASE_URL
+    if args.MODEL:
+        set_key(dotenv_path='.env', key_to_set='MODEL_NAME', value_to_set=args.MODEL)
+        os.environ["MODEL_NAME"] = args.MODEL
+    
+    load_dotenv(override=True)  # Reload environment variables
+
+    # Inisialisasi client dengan API_KEY yang terbaru
+    client = AsyncOpenAI(base_url=os.getenv("BASE_URL"), api_key=os.getenv("API_KEY"))
+
     if args.ask:
         chat_history.append({"role": "system", "content": f"You are a command shell ({os.name}), provide terminal commands."})
         chat_history.append({"role": "user", "content": args.ask})
-        await ask()
+        await ask(client)
     else:
         chat_history.append({"role": "system", "content": f"You are {AI_NAME}, a helpful assistant."})
-        await chat()
+        await chat(client)
+
+def main_entry():
+    asyncio.run(main())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main_entry()
