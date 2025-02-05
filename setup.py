@@ -13,7 +13,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'atomic=atomic:main', 
+            'atomic=atomic:main_entry', 
         ],
     },
     classifiers=[

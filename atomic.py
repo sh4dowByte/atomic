@@ -9,19 +9,14 @@ from rich.markdown import Markdown
 from rich.prompt import Prompt
 from rich.live import Live
 
-# Pastikan .env tersedia
-if not os.path.exists('.env'):
-    with open('env.example', 'r') as f:
-        with open('.env', 'w') as g:
-            g.writelines(f.readlines())
-
 # Load environment variables
 load_dotenv()
 
 AI_NAME = "Jarvis"
-MODEL_NAME = os.getenv("MODEL_NAME")
-BASE_URL = os.getenv("BASE_URL")
-API_KEY = os.getenv("API_KEY")
+
+BASE_URL = os.getenv("BASE_URL", "https://api.groq.com/openai/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
+API_KEY = os.getenv("API_KEY", "YOUR_API_KEY")
 
 # Rich console setup
 console = Console(force_interactive=True)
@@ -77,7 +72,7 @@ def parse_arguments():
         description="Atomic - Advanced Terminal Operation & Machine Intelligent Commander."
     )
     parser.add_argument("-a", "--ask", type=str, help="Ask a question.")
-    parser.add_argument("--API_KEY", type=str, help="Change API key (default: hidden)")
+    parser.add_argument("--API_KEY", type=str, help="Change API key (default: "+API_KEY+")")
     parser.add_argument("--BASE_URL", type=str, help="Change Base Url (default: "+BASE_URL+")")
     parser.add_argument("--MODEL", type=str, help="Change Model Name (default: "+MODEL_NAME+")")
    
@@ -85,30 +80,38 @@ def parse_arguments():
 
 async def main():
     """Main function to handle both CLI and interactive chat."""
+    global MODEL_NAME, BASE_URL, API_KEY
     args = parse_arguments()
 
     if args.API_KEY:
         set_key(dotenv_path='.env', key_to_set='API_KEY', value_to_set=args.API_KEY)
-        os.environ["API_KEY"] = args.API_KEY
+        API_KEY = os.environ["API_KEY"] = args.API_KEY
     if args.BASE_URL:
         set_key(dotenv_path='.env', key_to_set='BASE_URL', value_to_set=args.BASE_URL)
-        os.environ["BASE_URL"] = args.BASE_URL
+        BASE_URL = os.environ["BASE_URL"] = args.BASE_URL
     if args.MODEL:
         set_key(dotenv_path='.env', key_to_set='MODEL_NAME', value_to_set=args.MODEL)
-        os.environ["MODEL_NAME"] = args.MODEL
+        MODEL_NAME = os.environ["MODEL_NAME"] = args.MODEL
     
     load_dotenv(override=True)  # Reload environment variables
 
     # Inisialisasi client dengan API_KEY yang terbaru
-    client = AsyncOpenAI(base_url=os.getenv("BASE_URL"), api_key=os.getenv("API_KEY"))
-
+    client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
+    
     if args.ask:
-        chat_history.append({"role": "system", "content": f"You are a command shell ({os.name}), provide terminal commands."})
-        chat_history.append({"role": "user", "content": args.ask})
-        await ask(client)
+        try:
+            chat_history.append({"role": "system", "content": f"You are a command shell ({os.name}), provide terminal commands."})
+            chat_history.append({"role": "user", "content": args.ask})
+            await ask(client)
+        except Exception as e:
+            print(f"Error while processing ask: {e}")
     else:
-        chat_history.append({"role": "system", "content": f"You are {AI_NAME}, a helpful assistant."})
-        await chat(client)
+        try:
+            chat_history.append({"role": "system", "content": f"You are {AI_NAME}, a helpful assistant."})
+            await chat(client)
+        except Exception as e:
+            print(f"Error while processing chat: {e}")
+
 
 def main_entry():
     asyncio.run(main())
