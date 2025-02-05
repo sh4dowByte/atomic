@@ -1,3 +1,0 @@
-BASE_URL=https://api.groq.com/openai/v1
-MODEL_NAME=llama-3.1-8b-instant
-API_KEY='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'

@@ -13,7 +13,7 @@ from rich.live import Live
 env_path = os.path.join(os.path.dirname(__file__), ".env")
 load_dotenv(env_path)
 
-AI_NAME = "Jarvis"
+AI_NAME = "Atomic"
 
 BASE_URL = os.getenv("BASE_URL", "https://api.groq.com/openai/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
@@ -52,7 +52,7 @@ async def ask(client):
 async def chat(client):
     """Interactive chat session with AI."""
     global MODEL_NAME
-    console.print(f"[bold cyan]{AI_NAME} ready![/] Type [bold red]exit[/] to quit. Type [bold blue]model[/] to change model.\n")
+    console.print(f"[bold cyan]{AI_NAME} ready![/] Type [bold red]exit[/] to quit.\n")
     
     while True:
         user_input = Prompt.ask("[bold yellow]You[/]")
