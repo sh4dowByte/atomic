@@ -22,6 +22,8 @@ async def ask(client, chat_history):
                 bot_response += chunk.choices[0].delta.content
                 live.update(Markdown(bot_response))
     console.print("\n")
+    
+    return bot_response
 
 async def chat(client, chat_history):
     """Interactive chat session with AI."""

@@ -1,12 +1,11 @@
 import argparse
+import os
 import platform
+import re
 
 from openai import AsyncOpenAI
 from app.config import update_env_variable, API_KEY, BASE_URL, MODEL_NAME, AI_NAME
 from app.chat import ask, chat
-from rich.console import Console
-
-console = Console()
 
 def parse_arguments():
     """Parse command-line arguments."""
@@ -48,8 +47,33 @@ async def handle_cli(args):
         }]
 
         if isinstance(args.terminal, str): 
-           chat_history.append({"role": "user", "content": args.terminal})
-           await ask(client, chat_history)
+            chat_history.append({
+                "role": "system", 
+                "content": (
+                    "Provide exactly one terminal command inside a Markdown ```bash``` block. "
+                    "The command should be precise and directly related to the user's request. "
+                    "After the command, provide a detailed explanation of what the command does, "
+                    "including its purpose, important flags, and expected output if applicable. "
+                    "Do not include alternative commands, extra suggestions, or unrelated explanations."
+                )
+            })
+
+            chat_history.append({"role": "user", "content": args.terminal})
+            response = await ask(client, chat_history)
+
+            match = re.search(r'```bash\s*(.*?)\s*```', response, re.DOTALL)
+
+            # Adding a prompt for confirmation before running the command
+            if match:
+                command = match.group(1).strip()
+                print(command)
+                confirmation = input("Do you want to run the command? (Y/N): ").strip().upper()
+                if confirmation == 'Y':
+                    try:
+                        os.system(command)  # Running the command
+                    except Exception as e:
+                        print(f"Failed to run the command: {e}")
+                   
         else: 
             await chat(client, chat_history)
 
