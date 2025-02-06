@@ -1,32 +1,48 @@
 import argparse
-import os
-import platform
-import re
-
+import importlib
+from pathlib import Path
 from openai import AsyncOpenAI
-from app.config import update_env_variable, API_KEY, BASE_URL, MODEL_NAME, AI_NAME
-from app.chat import ask, chat
+from app.config import update_env_variable, API_KEY, BASE_URL, MODEL_NAME
+
+# Define the path to the 'prompt' directory
+PROMPT_DIR = Path(__file__).parent / "../prompt"
+
+# Dynamically load all modules from the 'prompt' directory that contain a 'prompt' function
+handlers = {}
+for file in PROMPT_DIR.glob("*.py"):
+    if file.stem == "__init__":
+        continue  # Skip '__init__.py'
+
+    module = importlib.import_module(f"prompt.{file.stem}")
+    if hasattr(module, "prompt"):
+        handlers[file.stem] = module.prompt  # Store the 'prompt' function from each module
+
 
 def parse_arguments():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Atomic - Advanced Terminal Operation & Machine Intelligent Commander."
     )
-    parser.add_argument("-a", "--ask", nargs="?", const=True, type=str, help="Ask a question.")
-    parser.add_argument("-t", "--terminal", nargs="?", const=True, type=str, help="Ask a termnial question.")
-    parser.add_argument("-c", "--coder", nargs="?", const=True, type=str, help="Ask as a programmer.")
 
+    # Define command-line options for different prompt handlers
+    parser.add_argument("-t", "--terminal", nargs="?", const=True, type=str, help="Ask a terminal-related question.")
+    parser.add_argument("-c", "--coder", nargs="?", const=True, type=str, help="Ask a programming-related question.")
+    parser.add_argument("-a", "--ask", nargs="?", const=True, type=str, help="Ask a general question.")
+
+    # Define command-line options for API configuration
     parser.add_argument("--API_KEY", type=str, help=f"Change API key (default: {API_KEY})")
-    parser.add_argument("--BASE_URL", type=str, help=f"Change Base Url (default: {BASE_URL})")
+    parser.add_argument("--BASE_URL", type=str, help=f"Change Base URL (default: {BASE_URL})")
     parser.add_argument("--MODEL", type=str, help=f"Change Model Name (default: {MODEL_NAME})")
-    
+
     return parser.parse_args()
 
-async def handle_cli(args):
-    """Handle CLI-based AI interaction."""
 
+async def handle_cli(args):
+    """Handle CLI-based AI interactions."""
+    
     client = AsyncOpenAI(base_url=BASE_URL, api_key=API_KEY)
 
+    # Update API configurations if provided via command-line arguments
     if args.API_KEY:
         update_env_variable("API_KEY", args.API_KEY)
     if args.BASE_URL:
@@ -34,80 +50,12 @@ async def handle_cli(args):
     if args.MODEL:
         update_env_variable("MODEL_NAME", args.MODEL)
 
-    if args.terminal:
-        os_name = platform.system()
-        chat_history = [{
-            "role": "system", 
-            "content":  (
-                "You are an expert terminal assistant. "
-                "Provide accurate and concise terminal commands based on the user's request. "
-                f"The current operating system is {os_name}. "
-                "Avoid unnecessary explanations unless requested."
-            )
-        }]
-
-        if isinstance(args.terminal, str): 
-            chat_history.append({
-                "role": "system", 
-                "content": (
-                    "Provide exactly one terminal command inside a Markdown ```bash``` block. "
-                    "The command should be precise and directly related to the user's request. "
-                    "After the command, provide a detailed explanation of what the command does, "
-                    "including its purpose, important flags, and expected output if applicable. "
-                    "Do not include alternative commands, extra suggestions, or unrelated explanations."
-                )
-            })
-
-            chat_history.append({"role": "user", "content": args.terminal})
-            response = await ask(client, chat_history)
-
-            match = re.search(r'```bash\s*(.*?)\s*```', response, re.DOTALL)
-
-            # Adding a prompt for confirmation before running the command
-            if match:
-                command = match.group(1).strip()
-                print(command)
-                confirmation = input("Do you want to run the command? (Y/N): ").strip().upper()
-                if confirmation == 'Y':
-                    try:
-                        os.system(command)  # Running the command
-                    except Exception as e:
-                        print(f"Failed to run the command: {e}")
-                   
-        else: 
-            await chat(client, chat_history)
-
-    elif args.coder:
-        chat_history = [{
-            "role": "system", 
-            "content": (
-                "You are a highly skilled programming assistant. "
-                "Your primary role is to help users write, debug, and optimize code. "
-                "Provide clear, efficient, and well-documented code snippets. "
-                "When relevant, include explanations in concise bullet points. "
-            )
-        }]
-        
-    
-        if isinstance(args.coder, str): 
-            chat_history.append({"role": "user", "content": args.coder})
-            await ask(client, chat_history)
-        else: 
-            await chat(client, chat_history)
-
+    # Execute the corresponding handler based on the provided argument
+    for key, handler in handlers.items():
+        arg_value = getattr(args, key, None)
+        if arg_value:
+            await handler(client, arg_value)
+            break
     else:
-        chat_history = [{
-            "role": "system",
-            "content": (
-                f"You are {AI_NAME}, a highly intelligent and helpful AI assistant. "
-                "Your primary goal is to provide accurate, clear, and concise responses. "
-                "Adapt your answers based on user intent and provide step-by-step guidance when necessary. "
-                "Keep responses informative and to the point."
-            )
-        }]
-
-        if isinstance(args.ask, str): 
-            chat_history.append({"role": "user", "content": args.ask})
-            await ask(client, chat_history)
-        else: 
-            await chat(client, chat_history)
+        # Default to 'assistant' if no specific argument is provided
+        await handlers["assistant"](client, args.ask)
